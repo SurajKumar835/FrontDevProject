@@ -1,0 +1,91 @@
+  public ActionResult GetHarvestExcel(HarvestExcelGenerationSearchParams searchParams)
+        {
+            searchParams.UserId = UserInfo.ID;
+            searchParams.CompanyId = UserInfo.CompanyID;
+
+            var farmerReportBiz = new Core.Domain.Implementations.FarmerReport();
+            var harvestData = farmerReportBiz.GetHarvestExcel(searchParams).Tables[0];
+            if (harvestData.Rows.Count > 0)
+            {
+                harvestData.Columns.Remove("RowId");
+            }
+            using (XLWorkbook wb = new XLWorkbook())
+            {
+                var ws = wb.Worksheets.Add(harvestData, "HarvestData");
+                wb.Protect(true);
+                var dropDownSheet = wb.Worksheets.Add("sheetName").Hide();
+                dropDownSheet.Cell("A1").Value = "No";
+                dropDownSheet.Cell("A2").Value = "Yes";
+
+                setVehicleDropDown(dropDownSheet);
+
+                wb.CustomProperties.Add("CompanyId", UserInfo.CompanyID.ToString());
+                ws.RangeUsed().SetAutoFilter();
+                ws.Worksheet.AutoFilter.Clear();
+                SetColumnProperties(ws, searchParams, harvestData, wb);
+                string handle = Guid.NewGuid().ToString();
+                Response.Clear();
+                Response.Buffer = true;
+                Response.Charset = "";
+                Response.ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+                Response.AddHeader("content-disposition", "attachment;filename=CropInHarvestUploadTemplate.xlsx");
+				
+				
+				
+                using (MemoryStream MyMemoryStream = new MemoryStream())
+                {
+                    wb.SaveAs(MyMemoryStream);
+                    MyMemoryStream.Position = 0;
+                    TempData[handle] = MyMemoryStream.ToArray();
+                }
+                return new JsonResult()
+                {
+                    Data = new { FileGuid = handle, FileName = "CropInHarvestUploadTemplate.xlsx" }
+                };
+            }
+        }
+
+        [HttpGet]
+        public virtual ActionResult Download(string fileGuid, string fileName)
+        {
+            if (TempData[fileGuid] != null)
+            {
+                byte[] data = TempData[fileGuid] as byte[];
+                return File(data, "application/vnd.ms-excel", fileName);
+            }
+            else
+            {
+                return new EmptyResult();
+            }
+        }
+		
+		
+		
+		
+		<javascript>
+		    var noOfExcel = Math.ceil(parseInt(response.returnValue) / response.maxHarvestsToBeUploaded);
+                    for (var i = 0; i < noOfExcel ; i++) {
+
+                        var link = document.createElement('a');
+                        link.setAttribute('download', null);
+                        link.style.display = 'none';
+                        document.body.appendChild(link);
+
+                        var searchParams = self.getSearchParams();
+                        searchParams.StartRowId = (i * response.maxHarvestsToBeUploaded + 1);
+                        searchParams.EndRowId = (i + 1) * response.maxHarvestsToBeUploaded;      
+                       
+                        $.ajax({
+                            cache: false,
+                            url: $.grep(self.urls, function (e) { return e.id == "GetHarvestExcel"; })[0].url,
+                            data: JSON.stringify(searchParams),
+                            type: 'POST',                           
+                            contentType: 'application/json',                          
+                            success: function (data) {                            
+                              link.setAttribute('href',$.grep(self.urls, function (e) { return e.id == "Download"; })[0].url + "?fileGuid=" + data.FileGuid+ '&filename=' + data.FileName);
+                              link.click();
+                            }
+                        });                      
+                        document.body.removeChild(link);   
+                       }
+		</javascript>

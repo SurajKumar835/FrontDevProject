@@ -1,0 +1,5 @@
+If the same image file need to be uploaded again and again
+need to set the input value to null for same file upload.
+
+<input type="file" style="display:none;" onchange="angular.element(this).scope().imageFileAdd(this);this.value = null; return false;">
+ highlight code works correctly in chrome and firefox
